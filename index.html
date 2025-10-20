@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>My Notes (JSONBin)</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 0 20px;
+      background: #f8f9fb;
+    }
+    h1, h2 { text-align: center; }
+    input, textarea {
+      width: 100%;
+      font-size: 16px;
+      margin: 10px 0;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+    }
+    textarea { height: 150px; resize: none; }
+    button {
+      margin: 5px;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 15px;
+      transition: 0.2s;
+    }
+    button:hover { opacity: 0.9; }
+    #saveBtn { background: #4caf50; color: white; }
+    #newBtn { background: #2196f3; color: white; }
+    #deleteBtn { background: #f44336; color: white; }
+    .note-item {
+      background: white;
+      border: 1px solid #ddd;
+      margin: 5px 0;
+      padding: 10px;
+      border-radius: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    #status {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #4caf50;
+      color: white;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-weight: bold;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+  </style>
+</head>
+<body>
+  <h1>📝 My Notes </h1>
+
+  <input type="text" id="title" placeholder="Note title...">
+  <textarea id="content" placeholder="Write your note here..."></textarea>
+
+  <div style="text-align:center;">
+    <button id="saveBtn" onclick="saveNote()">💾 Save</button>
+    <button id="newBtn" onclick="newNote()">➕ New</button>
+    <button id="deleteBtn" onclick="deleteNote()">🗑️ Delete</button>
+  </div>
+
+  <h2>Saved Notes</h2>
+  <div id="notesList"></div>
+
+  <div id="status">Saved!</div>
+
+  <script>
+    // =============================
+    // JSONBin Settings
+    // =============================
+    const BIN_ID = "68f60547d0ea881f40ae0c1d";           // Replace with your Bin ID
+    const API_KEY = "$2a$10$hDCb8qdKnxb5H36ghr56IuDbeDAvTBWOqDAyofLdZch0bAUW33I/C";      // Replace with your Secret Key
+    const API_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
+
+    let notes = [];
+    let currentIndex = null;
+    let typingTimeout;
+
+    const titleInput = document.getElementById('title');
+    const contentInput = document.getElementById('content');
+    const statusEl = document.getElementById('status');
+
+    // Show floating status
+    function showStatus(msg = "Saved!") {
+      statusEl.textContent = msg;
+      statusEl.style.opacity = 1;
+      setTimeout(() => statusEl.style.opacity = 0, 1500);
+    }
+
+    // Load notes from JSONBin
+    async function loadNotes() {
+      try {
+        const res = await fetch(API_URL + "/latest", {
+          headers: { "X-Master-Key": API_KEY }
+        });
+        const data = await res.json();
+        notes = data.record || [];
+        renderNotes();
+      } catch (err) {
+        console.error("Failed to load notes:", err);
+      }
+    }
+
+    // Save all notes to JSONBin
+    async function saveAllNotes() {
+      try {
+        await fetch(API_URL, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Master-Key": API_KEY
+          },
+          body: JSON.stringify(notes)
+        });
+        showStatus();
+      } catch (err) {
+        console.error("Failed to save notes:", err);
+      }
+    }
+
+    // Render note list
+    function renderNotes() {
+      const list = document.getElementById("notesList");
+      list.innerHTML = '';
+      notes.forEach((n, i) => {
+        const div = document.createElement("div");
+        div.className = "note-item";
+        div.innerHTML = `
+          <strong>${n.title || "(No title)"}</strong>
+          <button onclick="loadNote(${i})">View</button>
+        `;
+        list.appendChild(div);
+      });
+    }
+
+    // Load note into editor
+    function loadNote(i) {
+      currentIndex = i;
+      titleInput.value = notes[i].title;
+      contentInput.value = notes[i].content;
+      showStatus("Note loaded!");
+    }
+
+    // Start a new note
+    function newNote() {
+      currentIndex = null;
+      titleInput.value = '';
+      contentInput.value = '';
+      showStatus("New note ready!");
+    }
+
+    // Save or update current note
+    async function saveNote() {
+      const title = titleInput.value.trim();
+      const content = contentInput.value.trim();
+
+      if (!title && !content) return; // skip fully empty note
+
+      if (currentIndex === null) {
+        notes.push({ title, content });
+        currentIndex = notes.length - 1;
+      } else {
+        notes[currentIndex] = { title, content };
+      }
+
+      await saveAllNotes();
+      renderNotes();
+    }
+
+    // Delete current note
+    async function deleteNote() {
+      if (currentIndex === null) return showStatus("No note selected!");
+      notes.splice(currentIndex, 1);
+      currentIndex = null;
+      await saveAllNotes();
+      renderNotes();
+      newNote();
+      showStatus("Note deleted!");
+    }
+
+    // Auto-save after pause (2 sec)
+    function setupAutoSave() {
+      [titleInput, contentInput].forEach(input => {
+        input.addEventListener("input", () => {
+          clearTimeout(typingTimeout);
+          typingTimeout = setTimeout(saveNote, 2000);
+        });
+      });
+    }
+
+    // Initialize
+    loadNotes();
+    setupAutoSave();
+  </script>
+</body>
+</html>
